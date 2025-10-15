@@ -1,0 +1,12 @@
+{
+  "questions": [
+    "What are the latest developments in artificial intelligence?",
+    "How is machine learning being used in healthcare?",
+    "What are the challenges in implementing large language models?"
+  ],
+  "ground_truths": [
+    "Recent AI developments include advances in large language models, multimodal AI systems that can process text and images, improved reasoning capabilities, and more efficient training methods. There's also growing focus on AI safety and alignment.",
+    "Machine learning is being used in healthcare for medical image analysis, drug discovery, personalized treatment recommendations, early disease detection, and predicting patient outcomes. It helps radiologists identify anomalies in scans and assists in diagnosis.",
+    "Key challenges in implementing large language models include high computational costs, energy consumption, need for large training datasets, potential biases in outputs, hallucinations or factual errors, and ensuring responsible deployment with proper safety measures."
+  ]
+}

@@ -1,0 +1,10 @@
+chromadb>=0.5.4
+sentence-transformers>=3.0.0
+transformers>=4.51.0
+torch
+numpy
+requests
+tqdm
+streamlit>=1.36
+google-generativeai>=0.7.0
+trulens-providers-google
