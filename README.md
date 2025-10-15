@@ -27,7 +27,7 @@ The app will open at http://localhost:8501
 
 ## Configuration
 
-- Text Embeddings: all-MiniLM-L6-v2 (Sentence-BERT)
+- Text Embeddings: Qwen/Qwen3-Embedding-0.6B
 - Image Embeddings: clip-ViT-B-32 (CLIP)
 - LLM: gemini-2.5-flash (Google Gemini)
 - Vector Database: ChromaDB with local persistent storage
@@ -35,7 +35,7 @@ The app will open at http://localhost:8501
 ## How It Works
 
 1. Data Ingestion: Scrapes 320 articles from The Batch
-2. Embedding Generation: Creates vector representations (text: BERT, images: CLIP)
+2. Embedding Generation: Creates vector representations (text: Qwen3-Embedding-0.6B, images: CLIP)
 3. Vector Storage: Indexes in ChromaDB for fast similarity search
 4. Query Processing: User query retrieves top-3 relevant articles
 5. Context Construction: Builds prompt with retrieved articles
