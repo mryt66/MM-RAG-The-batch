@@ -2,6 +2,8 @@
 
 An end-to-end Retrieval-Augmented Generation (RAG) system with multimodal capabilities (text + images) built for The Batch news articles. Features a chat interface powered by Gemini 2.5 Flash with automatic evaluation and analytics.
 
+Demo Video:
+https://youtu.be/VPcpVOfJV_8
 ## Features
 
 - Multimodal Search: Text-only, image-only, or combined text+image queries
