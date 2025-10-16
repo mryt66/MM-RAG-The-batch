@@ -21,14 +21,16 @@ from rag.retrieval import (
     retrieve_multimodal_articles as ext_retrieve_mm,
     construct_prompt as ext_construct_prompt,
 )
-from evaluation.database_logger import log_interaction, auto_evaluate_interaction, get_interaction_evaluation
+from evaluation.database_logger import log_interaction, auto_evaluate_interaction
 
 # ---------- Config ----------
 DATA_PATH = Path("data/the_batch_articles_min.json")
 CHROMA_PATH = Path("chroma_db")
 COLLECTION_NAME = "Article"
 MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"
-EMB_FILE = Path("embeddings/embeddings.npz")  # stores vectors (float32) and ids (unicode)
+EMB_FILE = Path(
+    "embeddings/embeddings.npz"
+)  # stores vectors (float32) and ids (unicode)
 META_FILE = Path("data/metadata.json")  # stores minimal metadata + idx mapping
 
 # Image indexing config (CLIP for images)
@@ -103,15 +105,15 @@ def get_gemini_answer(prompt: str) -> tuple:
     try:
         model = genai.GenerativeModel("gemini-2.5-flash")
         resp = model.generate_content(prompt)
-        
+
         # Extract token usage
         tokens = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-        if hasattr(resp, 'usage_metadata'):
+        if hasattr(resp, "usage_metadata"):
             usage = resp.usage_metadata
-            tokens["input_tokens"] = getattr(usage, 'prompt_token_count', 0)
-            tokens["output_tokens"] = getattr(usage, 'candidates_token_count', 0)
-            tokens["total_tokens"] = getattr(usage, 'total_token_count', 0)
-        
+            tokens["input_tokens"] = getattr(usage, "prompt_token_count", 0)
+            tokens["output_tokens"] = getattr(usage, "candidates_token_count", 0)
+            tokens["total_tokens"] = getattr(usage, "total_token_count", 0)
+
         return resp.text, tokens
     except Exception as e:
         st.error(f"Gemini error: {e}")
@@ -368,7 +370,7 @@ def prepare_index(articles: List[Dict[str, Any]], *, compute_if_missing: bool):
 
     # Upsert to Chroma
     client = PersistentClient(path=str(CHROMA_PATH))
-    
+
     # Check if collection already exists with correct data (only when loading, not computing)
     if not compute_if_missing:
         try:
@@ -378,19 +380,28 @@ def prepare_index(articles: List[Dict[str, Any]], *, compute_if_missing: bool):
                 return col
         except Exception:
             pass  # Collection doesn't exist, create it
-    
+
     # Rebuild collection (when computing or collection doesn't exist/match)
-    with st.status(f"📊 Building text index in ChromaDB ({len(vectors)} vectors)...", expanded=False) as status:
+    with st.status(
+        f"📊 Building text index in ChromaDB ({len(vectors)} vectors)...",
+        expanded=False,
+    ) as status:
         # Drop entire collection to avoid stale vectors
         try:
             client.delete_collection(COLLECTION_NAME)
         except Exception:
             pass
         # Create a fresh collection after deletion
-        col = client.create_collection(COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
+        col = client.create_collection(
+            COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
+        )
         status.update(label="💾 Inserting vectors into ChromaDB...", state="running")
-        col.add(ids=ids, documents=texts, metadatas=metadatas, embeddings=vectors.tolist())
-        status.update(label=f"✅ Text index ready ({len(vectors)} vectors)", state="complete")
+        col.add(
+            ids=ids, documents=texts, metadatas=metadatas, embeddings=vectors.tolist()
+        )
+        status.update(
+            label=f"✅ Text index ready ({len(vectors)} vectors)", state="complete"
+        )
     return col
 
 
@@ -400,7 +411,7 @@ def _fetch_image(url: str) -> Optional[Image.Image]:
     try:
         # Add User-Agent header to avoid 403 errors
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
         r = requests.get(url, timeout=10, headers=headers)
         r.raise_for_status()
@@ -417,12 +428,18 @@ def prepare_image_index(articles: List[Dict[str, Any]], *, compute_if_missing: b
 
     # Only download images if we need to compute embeddings
     if compute_if_missing:
-        with st.status("📥 Downloading images from articles...", expanded=False) as download_status:
+        with st.status(
+            "📥 Downloading images from articles...", expanded=False
+        ) as download_status:
             for i, a in enumerate(articles):
                 if is_sponsor_title(a.get("title")):
                     continue
                 srcs = a.get("images") or []
-                if not isinstance(srcs, list) or not srcs or not isinstance(srcs[0], str):
+                if (
+                    not isinstance(srcs, list)
+                    or not srcs
+                    or not isinstance(srcs[0], str)
+                ):
                     continue
                 img = _fetch_image(srcs[0])
                 if img is None:
@@ -437,13 +454,17 @@ def prepare_image_index(articles: List[Dict[str, Any]], *, compute_if_missing: b
                     }
                 )
                 images.append(img)
-                
+
                 # Update progress every 50 images
                 if len(images) % 50 == 0:
-                    download_status.update(label=f"📥 Downloaded {len(images)} images...", state="running")
-            
-            download_status.update(label=f"✅ Downloaded {len(images)} images", state="complete")
-    
+                    download_status.update(
+                        label=f"📥 Downloaded {len(images)} images...", state="running"
+                    )
+
+            download_status.update(
+                label=f"✅ Downloaded {len(images)} images", state="complete"
+            )
+
     # When loading (not computing), try to load from disk first
     vectors = None
     if not compute_if_missing:
@@ -452,21 +473,21 @@ def prepare_image_index(articles: List[Dict[str, Any]], *, compute_if_missing: b
                 with np.load(IMAGE_EMB_FILE, allow_pickle=False) as npz:
                     vectors = npz["vectors"].astype("float32")
                     ids = npz["ids"].astype(str).tolist()
-                
+
                 with open(IMAGE_META_FILE, "r", encoding="utf-8") as f:
                     payload = json.load(f)
                     metadatas = payload.get("metadatas", [])
                     saved_model_name = payload.get("model_name")
-                
+
                 if saved_model_name != IMAGE_MODEL_NAME:
                     return None
         except Exception as e:
             return None  # No saved embeddings found, return None
-    
+
     # If loading from disk failed or we're computing, check if we have images
     if vectors is None and not images:
         return None
-    
+
     # Try to load saved embeddings if computing and compatible
     if compute_if_missing and vectors is None:
         saved_ids_emb = None
@@ -607,7 +628,7 @@ def prepare_image_index(articles: List[Dict[str, Any]], *, compute_if_missing: b
 
     # Upsert to Chroma
     client = PersistentClient(path=str(CHROMA_PATH))
-    
+
     # Check if collection already exists with correct data (only when loading, not computing)
     if not compute_if_missing:
         try:
@@ -617,9 +638,12 @@ def prepare_image_index(articles: List[Dict[str, Any]], *, compute_if_missing: b
                 return col
         except Exception:
             pass  # Collection doesn't exist, create it
-    
+
     # Rebuild collection (when computing or collection doesn't exist/match)
-    with st.status(f"📊 Building image index in ChromaDB ({len(vectors)} vectors)...", expanded=False) as status:
+    with st.status(
+        f"📊 Building image index in ChromaDB ({len(vectors)} vectors)...",
+        expanded=False,
+    ) as status:
         client = PersistentClient(path=str(CHROMA_PATH))
         try:
             client.delete_collection(IMAGE_COLLECTION_NAME)
@@ -628,9 +652,13 @@ def prepare_image_index(articles: List[Dict[str, Any]], *, compute_if_missing: b
         col = client.create_collection(
             IMAGE_COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
         )
-        status.update(label="💾 Inserting image vectors into ChromaDB...", state="running")
+        status.update(
+            label="💾 Inserting image vectors into ChromaDB...", state="running"
+        )
         col.add(ids=ids, metadatas=metadatas, embeddings=vectors.tolist())
-        status.update(label=f"✅ Image index ready ({len(vectors)} vectors)", state="complete")
+        status.update(
+            label=f"✅ Image index ready ({len(vectors)} vectors)", state="complete"
+        )
     return col
 
 
@@ -640,7 +668,11 @@ st.set_page_config(page_title="Chat with The Batch", page_icon="🔎", layout="w
 # Auto-evaluate unevaluated interactions on startup (runs once per session)
 if "auto_eval_done" not in st.session_state:
     try:
-        from evaluation.database_logger import get_unevaluated_interactions, evaluate_all_unevaluated
+        from evaluation.database_logger import (
+            get_unevaluated_interactions,
+            evaluate_all_unevaluated,
+        )
+
         unevaluated = get_unevaluated_interactions()
         if unevaluated and len(unevaluated) > 0:
             with st.spinner(f"🔄 Auto-evaluating {len(unevaluated)} interactions..."):
@@ -660,7 +692,7 @@ with btn_col1:
         with st.status("🔄 Loading index...", expanded=False) as status:
             status.update(label="� Loading articles...", state="running")
             state = initialize_system_chroma(show_progress=False)
-        
+
         st.session_state["collection_ready"] = state is not None
         if state is not None:
             st.toast("✅ Index loaded successfully!", icon="🎉")
@@ -815,10 +847,10 @@ with left_col:
             st.session_state["messages"] = []
         if "session_id" not in st.session_state:
             import uuid
+
             st.session_state["session_id"] = str(uuid.uuid4())[:8]  # Short session ID
         for msg in st.session_state["messages"]:
             with st.chat_message(msg["role"]):
-                # Display text content (for assistant, just the answer without sources)
                 if msg["role"] == "assistant":
                     # Split off sources section if present
                     content = msg["content"]
@@ -827,18 +859,6 @@ with left_col:
                         st.write(answer_part)
                     else:
                         st.write(content)
-                    
-                    # Display articles with relevance scores if they exist
-                    if "hits" in msg and msg["hits"]:
-                        st.markdown("---")
-                        st.markdown("**📚 Sources:**")
-                        for i, h in enumerate(msg["hits"][:3], start=1):
-                            article = h.get("article", {})
-                            title = article.get("title", "(no title)")
-                            url = article.get("issue_url", "")
-                            distance = h.get("distance")
-                            
-                            st.markdown(f"{i}. [{title}]({url})")
                 else:
                     # User messages - display as is
                     st.write(msg["content"])
@@ -849,13 +869,19 @@ with left_col:
             type=["png", "jpg", "jpeg"],
             help="Attach an image to your query. System automatically adjusts text/image weighting based on similarity quality.",
         )
-        
+
         # Show status when image is attached
         if uploaded_img is not None:
-            st.success("✅ Image attached! Type your question or just a space (' ') for image-only search.")
-        
-        user_msg = st.chat_input("Type your question (or space for image-only)…" if uploaded_img else "Attach an image or type your question…")
-        
+            st.success(
+                "✅ Image attached! Type your question or just a space (' ') for image-only search."
+            )
+
+        user_msg = st.chat_input(
+            "Type your question (or space for image-only)…"
+            if uploaded_img
+            else "Attach an image or type your question…"
+        )
+
         # Process if user sends message
         if user_msg is not None:
             # Add message to chat
@@ -864,10 +890,14 @@ with left_col:
             if actual_content == "" or actual_content == " ":
                 # Image-only search (user typed just space or whitespace)
                 if uploaded_img is not None:
-                    st.session_state["messages"].append({"role": "user", "content": "[Image search]"})
+                    st.session_state["messages"].append(
+                        {"role": "user", "content": "[Image search]"}
+                    )
             else:
                 # Regular text message
-                st.session_state["messages"].append({"role": "user", "content": user_msg})
+                st.session_state["messages"].append(
+                    {"role": "user", "content": user_msg}
+                )
 
             # Show uploaded image if provided
             pil_img = None
@@ -900,10 +930,12 @@ with left_col:
                 actual_text = user_msg.strip() if user_msg else ""
                 has_text = actual_text and actual_text != " " and len(actual_text) > 0
                 has_image = pil_img is not None
-                
+
                 if has_image and has_text:
                     # Both text and image provided -> Multimodal search with smart weighting
-                    status.update(label="🔍 Multimodal search (smart weighting)…", state="running")
+                    status.update(
+                        label="🔍 Multimodal search (smart weighting)…", state="running"
+                    )
                     mm_hits = ext_retrieve_mm(
                         state,
                         text_query=user_msg,
@@ -944,10 +976,12 @@ with left_col:
 
                 st.session_state["last_hits"] = all_hits
                 status.update(label="Retrieving context…", state="running")
-                
+
                 # Build conversation history for context
                 history_messages = []
-                for msg in st.session_state.get("messages", [])[-6:]:  # Last 3 exchanges (6 messages)
+                for msg in st.session_state.get("messages", [])[
+                    -6:
+                ]:  # Last 3 exchanges (6 messages)
                     role = msg.get("role", "")
                     content = msg.get("content", "")
                     if role == "user":
@@ -959,63 +993,79 @@ with left_col:
                         else:
                             answer_part = content
                         history_messages.append(f"Assistant: {answer_part}")
-                
+
                 history_text = "\n".join(history_messages) if history_messages else ""
-                
+
                 # Build the prompt using the RAGState API
                 # For image-only mode without text, use a default query
-                query_for_prompt = user_msg if user_msg else "What can you tell me about these articles?"
-                prompt, _ctx = construct_prompt(state, query_for_prompt, history_text=history_text)
+                query_for_prompt = (
+                    user_msg
+                    if user_msg
+                    else "What can you tell me about these articles?"
+                )
+                prompt, _ctx = construct_prompt(
+                    state, query_for_prompt, history_text=history_text
+                )
                 configured = configure_gemini(None)
                 status.update(label="Composing answer…", state="running")
-                
+
                 # Get answer and token usage
                 if configured:
                     answer, token_usage = get_gemini_answer(prompt)
                 else:
                     answer = "(no LLM configured)"
-                    token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-                
+                    token_usage = {
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "total_tokens": 0,
+                    }
+
                 status.update(label="Done", state="complete")
-            
+
             # Log interaction to database
             try:
                 # Prepare contexts for logging
                 contexts_for_log = []
                 for h in all_hits[:3]:
                     article = h.get("article", {})
-                    contexts_for_log.append({
-                        "title": article.get("title", ""),
-                        "text": article.get("text", "")[:500]  # Truncate for storage
-                    })
-                
+                    contexts_for_log.append(
+                        {
+                            "title": article.get("title", ""),
+                            "text": article.get("text", "")[
+                                :500
+                            ],  # Truncate for storage
+                        }
+                    )
+
                 # Log the interaction with token usage
                 interaction_id = log_interaction(
                     question=query_for_prompt,
                     answer=answer or "(no response)",
                     contexts=contexts_for_log,
                     session_id=st.session_state.get("session_id", "default"),
-                    token_usage=token_usage
+                    token_usage=token_usage,
                 )
-                
-                # Auto-evaluate (this will compute metrics)
-                status.update(label="🔍 Evaluating response quality...", state="running")
-                eval_metrics = auto_evaluate_interaction(interaction_id)
-                
-                status.update(label="✅ Evaluation complete", state="complete")
-                
-                # Store interaction_id for displaying metrics
-                st.session_state["last_interaction_id"] = interaction_id
-                st.session_state["last_eval_metrics"] = eval_metrics
-                
+
+                # Schedule silent evaluation in background after 2 seconds
+                def delayed_evaluation():
+                    import time
+
+                    time.sleep(2)
+                    try:
+                        auto_evaluate_interaction(interaction_id)
+                    except:
+                        pass  # Silent failure
+
+                import threading
+
+                threading.Thread(target=delayed_evaluation, daemon=True).start()
+
             except Exception as e:
                 st.warning(f"Note: Failed to log to database: {e}")
-                st.session_state["last_interaction_id"] = None
-                st.session_state["last_eval_metrics"] = None
-            
+
             # Format assistant response with articles and relevance scores
             response_content = answer or "(no response)"
-            
+
             # Add articles section with relevance scores
             if all_hits:
                 response_content += "\n\n**📚 Sources:**\n"
@@ -1024,75 +1074,21 @@ with left_col:
                     title = article.get("title", "(no title)")
                     url = article.get("issue_url", "")
                     distance = h.get("distance")
-                    
+
                     # Add article link
                     response_content += f"\n{i}. [{title}]({url})"
-            
+
             st.session_state["messages"].append(
                 {"role": "assistant", "content": response_content, "hits": all_hits}
             )
             with st.chat_message("assistant"):
                 st.write(answer or "(no response)")
-                
-                # Display articles
-                if all_hits:
-                    st.markdown("---")
-                    st.markdown("**📚 Sources:**")
-                    for i, h in enumerate(all_hits[:3], start=1):
-                        article = h.get("article", {})
-                        title = article.get("title", "(no title)")
-                        url = article.get("issue_url", "")
-                        
-                        # Display article without relevance score
-                        st.markdown(f"{i}. [{title}]({url})")
-                
-                # Display evaluation metrics if available
-                eval_metrics = st.session_state.get("last_eval_metrics")
-                if eval_metrics:
-                    st.markdown("---")
-                    st.markdown("**📊 Evaluation Metrics:**")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        cr_score = eval_metrics.get("context_relevance", 0)
-                        cr_color = "🟢" if cr_score >= 0.7 else "🟡" if cr_score >= 0.4 else "🔴"
-                        st.metric(
-                            label=f"{cr_color} Context Relevance",
-                            value=f"{cr_score:.2f}",
-                            help="How relevant are the retrieved contexts to the question?"
-                        )
-                    with col2:
-                        g_score = eval_metrics.get("groundedness", 0)
-                        g_color = "🟢" if g_score >= 0.7 else "🟡" if g_score >= 0.4 else "🔴"
-                        st.metric(
-                            label=f"{g_color} Groundedness",
-                            value=f"{g_score:.2f}",
-                            help="Is the answer supported by the contexts?"
-                        )
-                    with col3:
-                        ar_score = eval_metrics.get("answer_relevance", 0)
-                        ar_color = "🟢" if ar_score >= 0.7 else "🟡" if ar_score >= 0.4 else "🔴"
-                        st.metric(
-                            label=f"{ar_color} Answer Relevance",
-                            value=f"{ar_score:.2f}",
-                            help="How relevant is the answer to the question?"
-                        )
-                    
-                    # Show token usage if available
-                    interaction_id = st.session_state.get("last_interaction_id")
-                    if interaction_id:
-                        try:
-                            full_eval = get_interaction_evaluation(interaction_id)
-                            if full_eval and full_eval.get("total_tokens"):
-                                st.caption(f"🔢 Tokens: {full_eval['total_tokens']} (input: {full_eval['input_tokens']}, output: {full_eval['output_tokens']})")
-                        except:
-                            pass
 
 
 with right_col:
     st.subheader("Top 3 relevant articles")
     hits = st.session_state.get("last_hits") or []
-    
+
     if not hits:
         st.caption("No results yet. Try asking a question.")
     else:
@@ -1140,10 +1136,10 @@ with right_col:
                         f"<img class='right-article-img' src='{img_url}' />",
                         unsafe_allow_html=True,
                     )
-                
+
                 # Display title
                 st.markdown(f"**{i}. [{title}]({url})**")
-                
+
                 # Add a short text excerpt
                 try:
                     raw_text = (a.get("text") or "").strip()
