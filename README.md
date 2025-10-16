@@ -25,6 +25,13 @@ streamlit run app.py
 
 The app will open at http://localhost:8501
 
+Run the evaluation dashboard:
+```powershell
+streamlit run evaluation/evaluation_dashboard.py --server.port 8502
+```
+
+The dashboard will open at http://localhost:8502
+
 ## Configuration
 
 - Text Embeddings: Qwen/Qwen3-Embedding-0.6B
